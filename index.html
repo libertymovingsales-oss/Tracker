@@ -169,11 +169,7 @@ function renderAll(){
   drawWeight(labels,wdata); drawMeasures(labels,waist,chest,hips);
 }
 
-function drawWeight(labels,data){
-  const ctx=$("wChart").getContext("2d");
-  if(state.charts.w) state.charts.w.destroy();
-  state.charts.w=new Chart(ctx,{type:"line",data:{labels,datasets:[{label:"Weight",data,borderWidth:3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:false}}}});
-}
+
 function drawWeight(labels,data){
   const ctx = $("wChart").getContext("2d");
   if (state.charts.w) state.charts.w.destroy();
