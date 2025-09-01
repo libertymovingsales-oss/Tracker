@@ -166,8 +166,24 @@ function renderAll(){
   const labels=list.map(e=>e.date);
   const wdata=list.map(e=>e.weight);
   const waist=list.map(e=>e.waist), chest=list.map(e=>e.chest), hips=list.map(e=>e.hips);
-  drawWeight(labels,wdata); drawMeasures(labels,waist,chest,hips);
+  drawWeight(labels,wdata); function drawMeasures(labels,waist,chest,hips){
+  const ctx = $("mChart").getContext("2d");
+  try{
+    if (state.charts.m) state.charts.m.destroy();
+    state.charts.m = new Chart(ctx,{
+      type:"bar",
+      data:{ labels, datasets:[
+        { label:"Waist", data:waist },
+        { label:"Chest", data:chest },
+        { label:"Hips",  data:hips  }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false }
+    });
+  } catch(_e){
+    // Silent fallback (optional): do nothing instead of crashing UI
+  }
 }
+
 
 
 function drawWeight(labels,data){
