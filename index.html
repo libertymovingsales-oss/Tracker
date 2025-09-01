@@ -160,6 +160,7 @@ function importCSV(file){
 
 function renderAll(){
   const list=state.data[state.person];
+  console.table(list); // debug: see parsed rows
   const last=list[list.length-1];
   $("latest").innerHTML= last? `📅 <b>${last.date}</b><br>⚖️ ${pretty(last.weight)} lb<br>📏 waist ${pretty(last.waist)} · chest ${pretty(last.chest)} · hips ${pretty(last.hips)}<br>📝 ${last.notes||"—"}`: "— No data yet —";
   const labels=list.map(e=>e.date);
@@ -173,11 +174,46 @@ function drawWeight(labels,data){
   if(state.charts.w) state.charts.w.destroy();
   state.charts.w=new Chart(ctx,{type:"line",data:{labels,datasets:[{label:"Weight",data,borderWidth:3,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:false}}}});
 }
-function drawMeasures(labels,waist,chest,hips){
-  const ctx=$("mChart").getContext("2d");
-  if(state.charts.m) state.charts.m.destroy();
-  state.charts.m=new Chart(ctx,{type:"bar",data:{labels,datasets:[{label:"Waist",data:waist},{label:"Chest",data:chest},{label:"Hips",data:hips}]},options:{responsive:true,maintainAspectRatio:false}});
+function drawWeight(labels,data){
+  const ctx = $("wChart").getContext("2d");
+  if (state.charts.w) state.charts.w.destroy();
+
+  // If no valid numbers, don't try to plot a line
+  const hasData = data.some(v => v != null && !isNaN(v));
+  if (!hasData) {
+    state.charts.w = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{ label: "Weight", data: [] }] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins:{legend:{display:false}},
+        scales:{y:{beginAtZero:false}}
+      }
+    });
+    return;
+  }
+
+  state.charts.w = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Weight",
+        data,
+        borderWidth: 3,
+        pointRadius: 4,     // bigger points so a single day is visible
+        spanGaps: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins:{legend:{display:false}},
+      elements:{point:{radius:4}},
+      scales:{ y:{ beginAtZero:false } }
+    }
+  });
 }
+
 
 init();
 </script>
