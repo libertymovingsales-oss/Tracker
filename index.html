@@ -4,28 +4,27 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Duo90 Tracker · Derrick & Kimaada</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 <style>
-  :root{--bg1:#fff1f2;--bg2:#ffe4e6;--card:#ffffffcc;--ink:#1f2937}
-  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;line-height:1.4;color:var(--ink);
-  background:linear-gradient(135deg,var(--bg1),var(--bg2));}
+  :root{--bg1:#fff1f2;--bg2:#ffe4e6;--ink:#111827;--card:#ffffffcc}
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto;line-height:1.4;color:var(--ink);background:linear-gradient(135deg,var(--bg1),var(--bg2))}
   .wrap{max-width:1100px;margin:0 auto;padding:24px}
   .row{display:grid;grid-template-columns:1fr;gap:16px}
   @media(min-width:960px){.row{grid-template-columns:2fr 1fr}}
   .card{background:var(--card);backdrop-filter:blur(8px);border-radius:18px;box-shadow:0 10px 30px #00000014;padding:16px}
   h1{margin:0 0 4px;font-size:28px} .muted{opacity:.75}
   .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pill{padding:8px 12px;border-radius:999px;background:#fff}
   select,input,textarea,button,label{font:inherit}
   input,textarea,select{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
   button{padding:10px 14px;border:0;border-radius:14px;background:#111827;color:#fff;cursor:pointer}
-  button.outline{background:#fff;color:#111827;border:1px solid #111827}
+  button.alt{background:#fff;color:#111827;border:1px solid #111827}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   .section{margin-top:10px} .label{font-size:12px;opacity:.8;margin-bottom:4px}
   .latest{font-size:14px;background:#fff;border-radius:12px;padding:10px}
-  .pill{padding:8px 12px;border-radius:999px;background:#fff}
   canvas{background:#fff;border-radius:12px;padding:6px}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -35,13 +34,13 @@
         <div class="muted">For Derrick & Kimaada — simple, pretty progress</div>
       </div>
       <div style="flex:1"></div>
-      <label class="pill"> Person
+      <label class="pill">Person
         <select id="person">
           <option value="derrick">Derrick</option>
           <option value="kimaada">Kimaada</option>
         </select>
       </label>
-      <button id="dl">Download CSV</button>
+      <button id="dl" class="alt">Download CSV</button>
       <label class="pill">Import CSV
         <input id="file" type="file" accept=".csv"/>
       </label>
@@ -50,9 +49,9 @@
     <div class="row section">
       <div class="card">
         <div class="label">Weight trend (lb)</div>
-        <canvas id="wChart" height="220"></canvas>
+        <div style="height:240px"><canvas id="wChart"></canvas></div>
         <div class="label" style="margin-top:12px">Measurements (in)</div>
-        <canvas id="mChart" height="220"></canvas>
+        <div style="height:240px"><canvas id="mChart"></canvas></div>
       </div>
 
       <div class="card">
@@ -65,7 +64,7 @@
           <div><div class="label">Hips (in)</div><input id="hips" placeholder="e.g., 49"></div>
           <div style="grid-column:1/-1"><div class="label">Notes</div><textarea id="notes" rows="3" placeholder="hydration, sleep, workouts, wins…"></textarea></div>
         </div>
-        <div class="section"><button id="save">Save in page</button></div>
+        <div class="section"><button id="save" type="button" onclick="addEntry()">Save in page</button></div>
         <div class="section">
           <div class="label">Latest entry</div>
           <div id="latest" class="latest">— No data yet —</div>
@@ -76,12 +75,12 @@
 
 <script>
 const FIELDS=["date","weight","waist","chest","hips","notes"];
-const state={ person:"derrick", data:{ derrick:[], kimaada:[] }, charts:{} };
+const state={ person:"derrick", data:{ derrick:[], kimaada:[] }, charts:{ w:null,m:null } };
 const $=id=>document.getElementById(id);
 
 function init(){
   $("date").value=new Date().toISOString().slice(0,10);
-  $("person").addEventListener("change",e=>{state.person=e.target.value;renderAll()});
+  $("person").addEventListener("change",e=>{state.person=e.target.value; renderAll()});
   $("save").addEventListener("click",addEntry);
   $("dl").addEventListener("click",downloadCSV);
   $("file").addEventListener("change",e=>e.target.files[0]&&importCSV(e.target.files[0]));
@@ -89,8 +88,12 @@ function init(){
 }
 
 async function loadCSV(p){
-  try{const t=await (await fetch(`data/${p}.csv?t=${Date.now()}`)).text();
-      state.data[p]=parseCSV(t);}catch(e){console.log("No CSV yet for",p)}
+  try{
+    const res=await fetch(`data/${p}.csv?t=${Date.now()}`);
+    if(!res.ok) return; // file might not exist yet
+    const text=await res.text();
+    state.data[p]=parseCSV(text);
+  }catch(e){ /* ignore */ }
 }
 
 function parseCSV(text){
@@ -100,28 +103,25 @@ function parseCSV(text){
   const out=[];
   for(let i=1;i<lines.length;i++){
     const row=splitRow(lines[i]); if(!row.length) continue;
-    const get=(k)=>idx[k]>=0?row[idx[k]]:"";
+    const get=k=>idx[k]>=0?row[idx[k]]:"";
     const num=v=>v===""?null:parseFloat(v);
     const e={date:get("date"),weight:num(get("weight")),waist:num(get("waist")),chest:num(get("chest")),hips:num(get("hips")),notes:get("notes")};
     if(e.date) out.push(e);
   }
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
-
-function splitRow(s){ // CSV with quotes
+function splitRow(s){
   const r=[]; let cur="",q=false; for(let i=0;i<s.length;i++){
     const c=s[i];
-    if(c==='"'){ if(q&&s[i+1]==='"'){cur+='"';i++;} else q=!q; }
+    if(c==='\"'){ if(q&&s[i+1]==='\"'){cur+='\"';i++;} else q=!q; }
     else if(c===","&&!q){ r.push(cur.trim()); cur=""; }
     else cur+=c;
   } r.push(cur.trim()); return r;
 }
-
 function toCSV(arr){
   const lines=[FIELDS.join(",")];
   for(const e of arr){
-    const vals=FIELDS.map(k=>{let v=e[k]??""; v=String(v);
-      return (v.includes(",")||v.includes('"'))? '"'+v.replaceAll('"','""')+'"':v;});
+    const vals=FIELDS.map(k=>{let v=e[k]??""; v=String(v); return (v.includes(",")||v.includes('"'))? '"'+v.replaceAll('"','""')+'"':v;});
     lines.push(vals.join(","));
   }
   return lines.join("\n");
@@ -130,11 +130,11 @@ function toCSV(arr){
 function addEntry(){
   const e={
     date:$("date").value,
-    weight:num($("weight").value),
-    waist:num($("waist").value),
-    chest:num($("chest").value),
-    hips:num($("hips").value),
-    notes:$("notes").value.trim()
+    weight: num($("weight").value),
+    waist:  num($("waist").value),
+    chest:  num($("chest").value),
+    hips:   num($("hips").value),
+    notes:  $("notes").value.trim()
   };
   if(!e.date) return alert("Pick a date");
   const list=state.data[state.person].filter(x=>x.date!==e.date); list.push(e);
@@ -142,9 +142,8 @@ function addEntry(){
   ["weight","waist","chest","hips","notes"].forEach(id=>$(id).value="");
   renderAll();
 }
-
-function num(v){if(v===""||v==null) return null; const n=parseFloat(v); return isFinite(n)?n:null}
-function pretty(n){return n==null||isNaN(n)?"—":Number(n).toFixed(1)}
+function num(v){ if(v===""||v==null) return null; const n=parseFloat(v); return isFinite(n)?n:null; }
+function pretty(n){ return (n==null||isNaN(n))?"—":Number(n).toFixed(1); }
 
 function downloadCSV(){
   const csv=toCSV(state.data[state.person]);
@@ -152,80 +151,34 @@ function downloadCSV(){
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
   a.download=state.person+".csv"; a.click(); URL.revokeObjectURL(a.href);
 }
-
 function importCSV(file){
-  const fr=new FileReader(); fr.onload=()=>{state.data[state.person]=parseCSV(String(fr.result||"")); renderAll()};
+  const fr=new FileReader(); fr.onload=()=>{ state.data[state.person]=parseCSV(String(fr.result||"")); renderAll(); };
   fr.readAsText(file);
 }
 
 function renderAll(){
   const list=state.data[state.person];
-  console.table(list); // debug: see parsed rows
   const last=list[list.length-1];
   $("latest").innerHTML= last? `📅 <b>${last.date}</b><br>⚖️ ${pretty(last.weight)} lb<br>📏 waist ${pretty(last.waist)} · chest ${pretty(last.chest)} · hips ${pretty(last.hips)}<br>📝 ${last.notes||"—"}`: "— No data yet —";
   const labels=list.map(e=>e.date);
   const wdata=list.map(e=>e.weight);
   const waist=list.map(e=>e.waist), chest=list.map(e=>e.chest), hips=list.map(e=>e.hips);
-  drawWeight(labels,wdata); function drawMeasures(labels,waist,chest,hips){
-  const ctx = $("mChart").getContext("2d");
-  try{
-    if (state.charts.m) state.charts.m.destroy();
-    state.charts.m = new Chart(ctx,{
-      type:"bar",
-      data:{ labels, datasets:[
-        { label:"Waist", data:waist },
-        { label:"Chest", data:chest },
-        { label:"Hips",  data:hips  }
-      ]},
-      options:{ responsive:true, maintainAspectRatio:false }
-    });
-  } catch(_e){
-    // Silent fallback (optional): do nothing instead of crashing UI
-  }
+  drawWeight(labels,wdata); drawMeasures(labels,waist,chest,hips);
 }
-
-
 
 function drawWeight(labels,data){
-  const ctx = $("wChart").getContext("2d");
-  if (state.charts.w) state.charts.w.destroy();
-
-  // If no valid numbers, don't try to plot a line
-  const hasData = data.some(v => v != null && !isNaN(v));
-  if (!hasData) {
-    state.charts.w = new Chart(ctx, {
-      type: "line",
-      data: { labels, datasets: [{ label: "Weight", data: [] }] },
-      options: { responsive: true, maintainAspectRatio: false,
-        plugins:{legend:{display:false}},
-        scales:{y:{beginAtZero:false}}
-      }
-    });
-    return;
-  }
-
-  state.charts.w = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: "Weight",
-        data,
-        borderWidth: 3,
-        pointRadius: 4,     // bigger points so a single day is visible
-        spanGaps: true
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins:{legend:{display:false}},
-      elements:{point:{radius:4}},
-      scales:{ y:{ beginAtZero:false } }
-    }
-  });
+  const ctx=$("wChart").getContext("2d");
+  if(state.charts.w) state.charts.w.destroy();
+  state.charts.w=new Chart(ctx,{type:"line",data:{labels,datasets:[{label:"Weight",data,borderWidth:3,pointRadius:4,spanGaps:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:false}}}});
 }
-
+function drawMeasures(labels,waist,chest,hips){
+  const ctx=$("mChart").getContext("2d");
+  if(state.charts.m) state.charts.m.destroy();
+  state.charts.m=new Chart(ctx,{type:"bar",data:{labels,datasets:[
+    {label:"Waist",data:waist},{label:"Chest",data:chest},{label:"Hips",data:hips}]},
+    options:{responsive:true,maintainAspectRatio:false}});
+}
 
 init();
 </script>
